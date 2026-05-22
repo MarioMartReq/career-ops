@@ -82,6 +82,11 @@ const ROLE_STOPWORDS = new Set([
   'fulltime', 'parttime', 'permanent', 'temporary', 'intern', 'internship',
   // generic job words
   'role', 'position', 'opportunity', 'team', 'based',
+  // role-type prefixes — same scope as seniority. Without these,
+  // "Technical Program Manager, Infrastructure" and
+  // "Technical Program Manager, Compute" share 3 tokens and false-match.
+  // The discriminator is what comes after, not the role-type prefix.
+  'technical', 'program', 'manager',
   // very common locations (extend in portals.yml later if needed)
   'bangalore', 'bengaluru', 'mumbai', 'delhi', 'hyderabad', 'pune', 'chennai',
   'london', 'berlin', 'paris', 'madrid', 'barcelona', 'amsterdam', 'dublin',
@@ -134,6 +139,16 @@ function roleFuzzyMatch(a, b) {
 
   const setB = new Set(wordsB);
   const overlap = wordsA.filter(w => setB.has(w));
+
+  // Subset match: with role-type prefixes (technical/program/manager)
+  // stripped, single-discriminator roles like "TPM, Compute" reduce to one
+  // token. Re-evaluating such a role must still match its existing tracker
+  // row, but the >= 2 overlap gate below would reject a single-token set.
+  // Allow the match only when BOTH sides reduce to the SAME token set
+  // (equal length + full overlap), so a bare "Engineering Manager" cannot
+  // collapse into "Engineering Manager, Backend".
+  if (wordsA.length === wordsB.length && overlap.length === wordsA.length) return true;
+
   if (overlap.length < 2) return false;
 
   // Require at least one non-baseline token in the overlap. Roles that
